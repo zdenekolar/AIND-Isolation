@@ -7,6 +7,7 @@ You must test your agent's strength against a set of agents with known
 relative strength using tournament.py and include the results in your report.
 """
 import random
+from math import sqrt
 import sys
 
 class Timeout(Exception):
@@ -37,18 +38,218 @@ def custom_score(game, player):
         The heuristic value of the current game state to the specified player.
     """
 
-    # START
-    legal_moves = game.get_legal_moves()
-    opponent_moves = game.get_legal_moves(game.get_opponent(player))
 
-    if len(opponent_moves) > 0:
-        return len(legal_moves) / len(opponent_moves)
+    if game.is_loser(player):
+        return float("-inf")
+
+    if game.is_winner(player):
+        return float("inf")
+
+    # Check if we can win in one move.
+    # if one_step_ko(game, player):
+    #     return float('inf')
+
+    return heuristic_three(game, player)
+
+
+
+def heuristic_one(game, player):
+    '''
+    This heuristic considers the next steps, i.e. if we make a move what is our situation.
+    Further it calculates the difference in available moves for both players.
+
+    Parameters
+    ----------
+    game : `isolation.Board`
+        An instance of `isolation.Board` encoding the current state of the
+        game (e.g., player locations and blocked cells).
+
+    player : object
+        A player instance in the current game (i.e., an object corresponding to
+        one of the player objects `game.__player_1__` or `game.__player_2__`.)
+
+    Returns
+    -------
+    float
+        The heuristic value of the current game state to the specified player.
+    '''
+
+    score = 0
+    for move in game.get_legal_moves():
+        next_step = game.forecast_move(move)
+        my_moves = len(next_step.get_legal_moves(player))
+        opponent_moves = len(next_step.get_legal_moves(game.get_opponent(player)))
+        score += my_moves - opponent_moves
+    return score
+
+
+def heuristic_two(game, player):
+    '''
+    Chase the opponent and minimize his options. 64.29%
+
+    Parameters
+    ----------
+    game : `isolation.Board`
+        An instance of `isolation.Board` encoding the current state of the
+        game (e.g., player locations and blocked cells).
+
+    player : object
+        A player instance in the current game (i.e., an object corresponding to
+        one of the player objects `game.__player_1__` or `game.__player_2__`.)
+
+    Returns
+    -------
+    float
+        The heuristic value of the current game state to the specified player.
+    '''
+
+    score = 0
+    my_moves_total = 0
+    for move in game.get_legal_moves():
+        next_step = game.forecast_move(move)
+        my_moves = len(next_step.get_legal_moves(player))
+        opponent_moves = len(next_step.get_legal_moves(game.get_opponent(player)))
+        score -= opponent_moves
+        my_moves_total += my_moves
+
+    if my_moves_total > 0:
+        return score
     else:
-        return float('inf')
-    # END
+        return float('-inf')
 
-def heuristic_one():
-    pass
+
+def heuristic_three(game, player):
+    '''
+    Combines heuristic one and two and with decreasing number of blank spaces we aim to block the opponent.
+
+    Parameters
+    ----------
+    game : `isolation.Board`
+        An instance of `isolation.Board` encoding the current state of the
+        game (e.g., player locations and blocked cells).
+
+    player : object
+        A player instance in the current game (i.e., an object corresponding to
+        one of the player objects `game.__player_1__` or `game.__player_2__`.)
+
+    Returns
+    -------
+    float
+        The heuristic value of the current game state to the specified player.
+    '''
+    total_spaces = 7*7
+    remaining_spaces = len(game.get_blank_spaces())
+    coefficient = remaining_spaces / total_spaces
+    return coefficient * heuristic_one(game, player) + (1 - coefficient) * heuristic_two(game, player)
+
+def heuristic_four(game, player):
+    '''
+    Return weighted average of scores, similar to F1 score.
+
+    Parameters
+    ----------
+    game : `isolation.Board`
+        An instance of `isolation.Board` encoding the current state of the
+        game (e.g., player locations and blocked cells).
+
+    player : object
+        A player instance in the current game (i.e., an object corresponding to
+        one of the player objects `game.__player_1__` or `game.__player_2__`.)
+
+    Returns
+    -------
+    float
+        The heuristic value of the current game state to the specified player.
+    '''
+
+    legal_moves = game.get_legal_moves()
+    my_moves = 0
+    blocked_opp_moves = 0
+    for move in legal_moves:
+        next_step = game.forecast_move(move)
+        my_moves += len(next_step.get_legal_moves(player))/8
+        blocked_opp_moves += (8-len(next_step.get_legal_moves(game.get_opponent(player))))/8
+    score = 2*(my_moves * blocked_opp_moves) / (my_moves + blocked_opp_moves)
+    return score
+
+def heuristic_five(game, player):
+    '''
+    Check positions that are awkward for the opponent and pick the one that gives you most steps.
+
+    Parameters
+    ----------
+    game : `isolation.Board`
+        An instance of `isolation.Board` encoding the current state of the
+        game (e.g., player locations and blocked cells).
+
+    player : object
+        A player instance in the current game (i.e., an object corresponding to
+        one of the player objects `game.__player_1__` or `game.__player_2__`.)
+
+    Returns
+    -------
+    float
+        The heuristic value of the current game state to the specified player.
+    '''
+
+    return calculate_distance(game, player)
+
+
+def calculate_distance(game, player):
+    '''
+
+    Return euclidian or manhattan distance.
+    Parameters
+    ----------
+    game : `isolation.Board`
+        An instance of `isolation.Board` encoding the current state of the
+        game (e.g., player locations and blocked cells).
+
+    player : object
+        A player instance in the current game (i.e., an object corresponding to
+        one of the player objects `game.__player_1__` or `game.__player_2__`.)
+
+    Returns
+    -------
+    float
+        The heuristic value of the current game state to the specified player.
+    '''
+
+    my_location = game.get_player_location(player)
+    opponent_location = game.get_player_location(game.get_opponent(player))
+    distance_x = abs(my_location[0] - opponent_location[0])
+    distance_y = abs(my_location[1] - opponent_location[1])
+
+    euclidean = sqrt(distance_x^2 + distance_y^2)
+    manhattan = distance_x + distance_y
+
+    return -euclidean
+
+def one_step_ko(game, player):
+    '''
+    Checks if we can kill the oponent in one move.
+
+    Parameters
+    ----------
+    game : `isolation.Board`
+        An instance of `isolation.Board` encoding the current state of the
+        game (e.g., player locations and blocked cells).
+
+    player : object
+        A player instance in the current game (i.e., an object corresponding to
+        one of the player objects `game.__player_1__` or `game.__player_2__`.)
+
+    Returns
+    -------
+    float
+        The heuristic value of the current game state to the specified player.
+    '''
+    for move in game.get_legal_moves(player):
+        next_step = game.forecast_move(move)
+        opponent_moves = len(next_step.get_legal_moves(next_step.get_opponent(player)))
+        if opponent_moves == 0:
+            return True
+    return False
 
 class CustomPlayer:
     """Game-playing agent that chooses a move using your evaluation function
